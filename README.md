@@ -1,46 +1,89 @@
-# ALCIE - Adaptive Learning for Continual Image Caption Enhancement
+# ALCIE: Active Learning for Continual Image Captioning Enhancement
 
-A comprehensive framework for continual learning in image captioning with advanced memory replay strategies, supporting both **OFA** and **BLIP-2** models for fashion image captioning tasks.
+Code for my Master's thesis (MSc Data Science and AI, Saarland University), carried out at DFKI (German Research Center for Artificial Intelligence) and submitted in August 2025. Advisor: Aliki Anagnostopoulou (DFKI). Reviewers: Prof. Dr.-Ing. Daniel Sonntag and Prof. Dr. Antonio Krueger.
 
-## 🎯 Overview
+**Research question:** can strategic (active-learning) sample selection for the episodic memory buffer improve continual learning in image captioning beyond simple random sampling?
 
-ALCIE addresses the challenge of catastrophic forgetting in continual learning for image captioning by implementing sophisticated memory management and replay strategies. The system trains models sequentially on different fashion categories while maintaining performance on previously learned categories.
+## Problem
 
-## 🏗️ Repository Structure
+Fine-tuning an image-captioning model on a new domain overwrites what it learned before (catastrophic forgetting). Here the stream is six fashion domains, trained in order: accessories, bottoms, dresses, outerwear, shoes, tops. After each domain the model is evaluated on every domain seen so far, so forgetting is measured per domain.
 
+## Method
+
+- **Models:** BLIP-2 (2.7B, frozen ViT encoder) and OFA (470M, end-to-end), each with its own training and evaluation scripts.
+- **Data:** a 72,000-image subset of FACAD (Fashion Captioning Dataset): 6 sequential domains of 12,000 images each (9,000 train / 2,000 test / 1,000 validation), average caption length 21 words.
+- **Episodic memory:** a bounded buffer (`memory_buffer.py`) holds training examples per domain. While training on domain *n*, buffered examples from earlier domains are replayed every `replay_freq` samples. When a new domain starts, a fraction of each earlier domain's slots is freed (`--delete_percent`, 1/n in the provided training scripts) to make room.
+- **Which examples enter the memory** (`--training_mode`):
+
+| Mode | Selection criterion |
+|------|---------------------|
+| `random` | Random baseline (constrained, with deletion) |
+| `random_no_delete` | Random baseline, unconstrained memory |
+| `uncertainty` | Highest sequence uncertainty of the model (token-level 1 - max probability, averaged over the caption) |
+| `diversity` | CLIP image+text features clustered with K-means; samples chosen by distance to cluster centroids |
+| `certainty` | Highest CLIP image-text similarity |
+| `hybrid` | `alpha * normalised uncertainty + (1 - alpha) * normalised diversity`, with stratified selection (default `alpha = 0.5`) |
+
+`basic` trains without memory (baseline).
+
+## Evaluation
+
+After training each domain, the scripts under `alcie/scripts/evaluation/` caption the test split of every seen domain and compute BLEU-4, ROUGE-L, METEOR (lexical) and BERTScore (semantic). `resultsToCSV.py` collects the per-pair JSON files into one table per metric, and `generate_graphs.py` plots them. The thesis reports BLEU-4 and BERTScore-F1 retention, Average Accuracy, Average Forgetting, and a human evaluation (15 participants, 24 images).
+
+## Results
+
+Accessories (the first domain) scored after training on all six domains; retention relative to the score right after learning Accessories in brackets.
+
+| Strategy | OFA BLEU-4 | BLIP-2 BLEU-4 | OFA BERTScore-F1 | BLIP-2 BERTScore-F1 |
+|---|---|---|---|---|
+| Initial (after Accessories) | 0.320 | 0.710 | 0.898 | 0.928 |
+| No memory | 0.000 (0%) | 0.000 (0%) | 0.831 (93%) | 0.831 (90%) |
+| Random, constrained | 0.125 (39%) | 0.248 (35%) | 0.867 (97%) | 0.875 (94%) |
+| Random, unconstrained | 0.146 (46%) | 0.259 (36%) | 0.868 (97%) | 0.877 (94%) |
+| Uncertainty | 0.096 (30%) | 0.225 (32%) | 0.859 (96%) | 0.875 (94%) |
+| Diversity | 0.116 (36%) | 0.157 (22%) | 0.861 (96%) | 0.861 (93%) |
+| Hybrid | 0.079 (25%) | 0.228 (32%) | 0.855 (95%) | 0.873 (94%) |
+
+### Key findings
+
+1. **Lexical-semantic forgetting gap.** Lexical generation (BLEU-4) retains only 0-35% while semantic understanding (BERTScore-F1) retains 86-93%, a 60-85 percentage point gap that is consistent across all strategies.
+2. **Diversity gives the best early stability.** BLIP-2 with diversity sampling keeps 56% of Accessories BLEU-4 after the first transition (0.401), versus 30-36% for random, but the advantage fades over the sequence.
+3. **Early-transition vulnerability.** Every strategy loses 40-70% at the first domain shifts.
+4. **Random sampling is competitive** at much lower compute cost (BLIP-2: 36% retention on Accessories, 53% on Outerwear BLEU-4).
+5. **Architecture dependence.** BLIP-2 strategies converge (about 0.883 average accuracy and BERTScore); OFA is more strategy-sensitive (0.865-0.871). Unconstrained vs constrained memory: BLIP-2 0.884 vs 0.883, OFA 0.871 vs 0.870.
+6. **Human evaluation.** Strategies are practically equivalent (0.07-point range across all dimensions), yet participants detect a 0.14-point quality drop between early and late learning phases. Metric gains between strategies sit below human perception thresholds.
+
+**Takeaway:** prioritise computational efficiency (random sampling) over sophisticated memory selection; future work should target the forgetting mechanism itself.
+
+### Limitations
+
+Fashion domain only (FACAD), two architectures, fixed domain order, a human study with 15 participants and 24 images, and simple score-based replacement with proportional deletion.
+
+Result files and the dataset are not part of this repository; the numbers above are taken from the thesis.
+
+## Reproduce
+
+1. Create the environment (see [Installation](#installation)). A CUDA GPU is required for training.
+2. Prepare the data in the layout described in [Dataset Structure](#-dataset-structure).
+3. Train with a chosen strategy, e.g. `SAMPLING_STRATEGY=hybrid ./alcie/scripts/trainer/train_blip2.sh` (BLIP-2) or `SAMPLING_STRATEGY=uncertainty ./alcie/scripts/trainer/train.sh` (OFA).
+4. Evaluate: `python alcie/scripts/evaluation/evaluate_model_blip2.py --sampling_method hybrid` (or `evaluate_model.py` for OFA).
+5. Aggregate: `python alcie/scripts/evaluation/resultsToCSV.py` (edit `evaluation_dir` at the top first) and `generate_graphs.py`.
+
+Paths in the example commands below are relative to the `alcie/` source folder; adjust to your checkout.
+
+## Citation
+
+```bibtex
+@mastersthesis{kumar2025alcie,
+  title  = {ALCIE: Active Learning for Continual Image Captioning Enhancement},
+  author = {Kumar, Akash},
+  school = {Saarland University},
+  year   = {2025},
+  month  = {August}
+}
 ```
-alcie/
-├── scripts/
-│   ├── data_processing/           # Data handling components
-│   │   ├── __init__.py
-│   │   ├── argument.py           # Training arguments for OFA/BLIP2
-│   │   ├── datacollator.py       # Data collators for both models
-│   │   └── dataset.py            # Dataset classes for OFA/BLIP2
-│   ├── memory_managements/       # Memory replay strategies
-│   │   ├── __init__.py
-│   │   ├── diversity_sampling.py    # Diversity-based sampling
-│   │   ├── random_sampling.py       # Random sampling baseline
-│   │   ├── certainty_sampling.py    # Certainty-based sampling
-│   │   ├── uncertainity_sampling.py # Uncertainty-based sampling
-│   │   ├── hybrid_sampling.py       # Hybrid sampling strategy
-│   │   └── memory_buffer.py         # Base memory buffer
-│   ├── trainer/                  # Training scripts and configurations
-│   │   ├── train.py             # OFA training script
-│   │   ├── train.sh             # OFA training shell script
-│   │   ├── train_blip2.py       # BLIP2 training script
-│   │   ├── train_blip2.sh       # BLIP2 training shell script
-│   │   ├── train_ofa.json       # OFA training configuration
-│   │   ├── train_blip2.json     # BLIP2 training configuration
-│   │   └── *_template.json      # Configuration templates
-│   └── evaluation/              # Evaluation and analysis
-│       ├── evaluate_model.py    # OFA model evaluation
-│       ├── evaluate_model_blip2.py  # BLIP2 model evaluation
-│       ├── generate_graphs.py   # Performance visualization
-│       └── resultsToCSV.py      # Results conversion
-└── README.md
-```
 
-## 🚀 Quick Start
+## Quick Start
 
 ### Prerequisites
 
@@ -124,7 +167,7 @@ image_id	base64_image_data
 12345	/9j/4AAQSkZJRgABAQEAYABgAAD/2wBDAAYEBQYFBAYGBQYHBwYIChAKCgkJChQODwwQFxQYGBcU...
 ```
 
-## 🧠 Memory Management Strategies
+## Strategy details
 
 ### 1. Random Sampling (`random_sampling.py`)
 - **Strategy**: Random selection from training batches
@@ -209,7 +252,7 @@ python scripts/trainer/train_blip2.py \
 | `--delete_percent` | Memory deletion percentage | `0.0` |
 | `--use_memory_replay` | Enable memory replay | `False` |
 
-## 📈 Evaluation
+## Running evaluation
 
 ### Evaluate OFA Models
 
@@ -378,41 +421,6 @@ python -c "import transformers; print(transformers.__version__)"
 python -c "import clip; print('CLIP loaded successfully')"
 ```
 
-## 📚 Research Background
+## License
 
-This implementation supports research in:
-- **Continual Learning**: Sequential task learning without forgetting
-- **Memory Replay**: Strategic sample selection and storage
-- **Multimodal Learning**: Vision-language model adaptation
-- **Fashion AI**: Domain-specific image captioning
-
-## 🤝 Contributing
-
-1. Fork the repository
-2. Create feature branch (`git checkout -b feature/new-sampling-strategy`)
-3. Implement changes following existing patterns
-4. Add comprehensive tests and documentation
-5. Submit pull request with detailed description
-
-## 📄 License
-
-This project is licensed under the MIT License - see the LICENSE file for details.
-
-## 🙏 Acknowledgments
-
-- **OFA Team**: Original OFA model architecture
-- **Salesforce**: BLIP-2 model and research
-- **Hugging Face**: Transformers library and model hub
-- **OpenAI**: CLIP model for multimodal embeddings
-- **Fashion Dataset Contributors**: Curated fashion image datasets
-
-## 📞 Contact
-
-For questions and support:
-- Create an issue in this repository
-- Check existing documentation and logs
-- Review configuration templates for reference
-
----
-
-**Happy Training! 🚀**
+MIT, see [LICENSE](LICENSE).
