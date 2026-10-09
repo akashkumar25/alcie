@@ -1,39 +1,65 @@
-# ALCIE - Active Learning for Continual Image Captioning
+# ALCIE: Active Learning for Continual Image Captioning Enhancement
 
-Code for my Master's thesis (MSc Data Science and AI, Saarland University): continual learning for image captioning, where a captioning model is trained on a sequence of fashion categories and an **episodic memory** of past examples is selected by **active-learning criteria** to limit catastrophic forgetting.
+Code for my Master's thesis (MSc Data Science and AI, Saarland University), carried out at DFKI (German Research Center for Artificial Intelligence) and submitted in August 2025. Advisor: Aliki Anagnostopoulou (DFKI). Reviewers: Prof. Dr.-Ing. Daniel Sonntag and Prof. Dr. Antonio Krueger.
+
+**Research question:** can strategic (active-learning) sample selection for the episodic memory buffer improve continual learning in image captioning beyond simple random sampling?
 
 ## Problem
 
-Fine-tuning an image-captioning model on a new domain overwrites what it learned before (catastrophic forgetting). Here the stream is six fashion categories, trained in order: accessories, bottoms, dresses, outerwear, shoes, tops. After each category the model is evaluated on every category seen so far, so forgetting is measured per category.
+Fine-tuning an image-captioning model on a new domain overwrites what it learned before (catastrophic forgetting). Here the stream is six fashion domains, trained in order: accessories, bottoms, dresses, outerwear, shoes, tops. After each domain the model is evaluated on every domain seen so far, so forgetting is measured per domain.
 
 ## Method
 
-- **Models:** OFA and BLIP-2, each with its own training and evaluation scripts.
-- **Episodic memory:** a bounded buffer (`memory_buffer.py`) holds training examples per category. While training on category *n*, a few buffered examples from earlier categories are replayed every `replay_freq` samples. When a new category starts, a fraction of each earlier category's slots is freed (`--delete_percent`, 1/n in the provided training scripts) to make room.
+- **Models:** BLIP-2 (2.7B, frozen ViT encoder) and OFA (470M, end-to-end), each with its own training and evaluation scripts.
+- **Data:** a 72,000-image subset of FACAD (Fashion Captioning Dataset): 6 sequential domains of 12,000 images each (9,000 train / 2,000 test / 1,000 validation), average caption length 21 words.
+- **Episodic memory:** a bounded buffer (`memory_buffer.py`) holds training examples per domain. While training on domain *n*, buffered examples from earlier domains are replayed every `replay_freq` samples. When a new domain starts, a fraction of each earlier domain's slots is freed (`--delete_percent`, 1/n in the provided training scripts) to make room.
 - **Which examples enter the memory** (`--training_mode`):
 
 | Mode | Selection criterion |
 |------|---------------------|
-| `random` | Random baseline |
+| `random` | Random baseline (constrained, with deletion) |
+| `random_no_delete` | Random baseline, unconstrained memory |
 | `uncertainty` | Highest sequence uncertainty of the model (token-level 1 - max probability, averaged over the caption) |
 | `diversity` | CLIP image+text features clustered with K-means; samples chosen by distance to cluster centroids |
 | `certainty` | Highest CLIP image-text similarity |
 | `hybrid` | `alpha * normalised uncertainty + (1 - alpha) * normalised diversity`, with stratified selection (default `alpha = 0.5`) |
 
-Other modes in `train.py`: `basic` (no memory) and `random_no_delete`.
+`basic` trains without memory (baseline).
 
 ## Evaluation
 
-After training each category, the scripts under `alcie/scripts/evaluation/` caption the test split of every seen category and compute:
-
-- **Lexical metrics:** BLEU-4, ROUGE-L, METEOR
-- **Semantic metric:** BERTScore (precision, recall, F1)
-
-`resultsToCSV.py` collects the per-pair JSON files into one table per metric (test category x training stage), and `generate_graphs.py` plots them. Comparing lexical metrics with BERTScore on the same checkpoints is how the forgetting gap between surface wording and meaning is assessed.
+After training each domain, the scripts under `alcie/scripts/evaluation/` caption the test split of every seen domain and compute BLEU-4, ROUGE-L, METEOR (lexical) and BERTScore (semantic). `resultsToCSV.py` collects the per-pair JSON files into one table per metric, and `generate_graphs.py` plots them. The thesis reports BLEU-4 and BERTScore-F1 retention, Average Accuracy, Average Forgetting, and a human evaluation (15 participants, 24 images).
 
 ## Results
 
-Result files and the fashion dataset are not part of this repository, so no numbers are reported here. To produce them, follow the steps below and run `resultsToCSV.py`. The headline thesis result (lexical vs. semantic forgetting gap) will be added once the result tables are published alongside the code.
+Accessories (the first domain) scored after training on all six domains; retention relative to the score right after learning Accessories in brackets.
+
+| Strategy | OFA BLEU-4 | BLIP-2 BLEU-4 | OFA BERTScore-F1 | BLIP-2 BERTScore-F1 |
+|---|---|---|---|---|
+| Initial (after Accessories) | 0.320 | 0.710 | 0.898 | 0.928 |
+| No memory | 0.000 (0%) | 0.000 (0%) | 0.831 (93%) | 0.831 (90%) |
+| Random, constrained | 0.125 (39%) | 0.248 (35%) | 0.867 (97%) | 0.875 (94%) |
+| Random, unconstrained | 0.146 (46%) | 0.259 (36%) | 0.868 (97%) | 0.877 (94%) |
+| Uncertainty | 0.096 (30%) | 0.225 (32%) | 0.859 (96%) | 0.875 (94%) |
+| Diversity | 0.116 (36%) | 0.157 (22%) | 0.861 (96%) | 0.861 (93%) |
+| Hybrid | 0.079 (25%) | 0.228 (32%) | 0.855 (95%) | 0.873 (94%) |
+
+### Key findings
+
+1. **Lexical-semantic forgetting gap.** Lexical generation (BLEU-4) retains only 0-35% while semantic understanding (BERTScore-F1) retains 86-93%, a 60-85 percentage point gap that is consistent across all strategies.
+2. **Diversity gives the best early stability.** BLIP-2 with diversity sampling keeps 56% of Accessories BLEU-4 after the first transition (0.401), versus 30-36% for random, but the advantage fades over the sequence.
+3. **Early-transition vulnerability.** Every strategy loses 40-70% at the first domain shifts.
+4. **Random sampling is competitive** at much lower compute cost (BLIP-2: 36% retention on Accessories, 53% on Outerwear BLEU-4).
+5. **Architecture dependence.** BLIP-2 strategies converge (about 0.883 average accuracy and BERTScore); OFA is more strategy-sensitive (0.865-0.871). Unconstrained vs constrained memory: BLIP-2 0.884 vs 0.883, OFA 0.871 vs 0.870.
+6. **Human evaluation.** Strategies are practically equivalent (0.07-point range across all dimensions), yet participants detect a 0.14-point quality drop between early and late learning phases. Metric gains between strategies sit below human perception thresholds.
+
+**Takeaway:** prioritise computational efficiency (random sampling) over sophisticated memory selection; future work should target the forgetting mechanism itself.
+
+### Limitations
+
+Fashion domain only (FACAD), two architectures, fixed domain order, a human study with 15 participants and 24 images, and simple score-based replacement with proportional deletion.
+
+Result files and the dataset are not part of this repository; the numbers above are taken from the thesis.
 
 ## Reproduce
 
@@ -49,10 +75,11 @@ Paths in the example commands below are relative to the `alcie/` source folder; 
 
 ```bibtex
 @mastersthesis{kumar2025alcie,
+  title  = {ALCIE: Active Learning for Continual Image Captioning Enhancement},
   author = {Kumar, Akash},
-  title  = {Active Learning for Continual Image Captioning},
   school = {Saarland University},
-  year   = {2025}
+  year   = {2025},
+  month  = {August}
 }
 ```
 
