@@ -140,7 +140,7 @@ image_id	base64_image_data
 12345	/9j/4AAQSkZJRgABAQEAYABgAAD/2wBDAAYEBQYFBAYGBQYHBwYIChAKCgkJChQODwwQFxQYGBcU...
 ```
 
-## 🧠 Memory Management Strategies
+## Strategy details
 
 ### 1. Random Sampling (`random_sampling.py`)
 - **Strategy**: Random selection from training batches
@@ -225,7 +225,7 @@ python scripts/trainer/train_blip2.py \
 | `--delete_percent` | Memory deletion percentage | `0.0` |
 | `--use_memory_replay` | Enable memory replay | `False` |
 
-## 📈 Evaluation
+## Running evaluation
 
 ### Evaluate OFA Models
 
