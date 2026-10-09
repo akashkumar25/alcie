@@ -1,46 +1,62 @@
-# ALCIE - Adaptive Learning for Continual Image Caption Enhancement
+# ALCIE - Active Learning for Continual Image Captioning
 
-A comprehensive framework for continual learning in image captioning with advanced memory replay strategies, supporting both **OFA** and **BLIP-2** models for fashion image captioning tasks.
+Code for my Master's thesis (MSc Data Science and AI, Saarland University): continual learning for image captioning, where a captioning model is trained on a sequence of fashion categories and an **episodic memory** of past examples is selected by **active-learning criteria** to limit catastrophic forgetting.
 
-## 🎯 Overview
+## Problem
 
-ALCIE addresses the challenge of catastrophic forgetting in continual learning for image captioning by implementing sophisticated memory management and replay strategies. The system trains models sequentially on different fashion categories while maintaining performance on previously learned categories.
+Fine-tuning an image-captioning model on a new domain overwrites what it learned before (catastrophic forgetting). Here the stream is six fashion categories, trained in order: accessories, bottoms, dresses, outerwear, shoes, tops. After each category the model is evaluated on every category seen so far, so forgetting is measured per category.
 
-## 🏗️ Repository Structure
+## Method
 
+- **Models:** OFA and BLIP-2, each with its own training and evaluation scripts.
+- **Episodic memory:** a bounded buffer (`memory_buffer.py`) holds training examples per category. While training on category *n*, a few buffered examples from earlier categories are replayed every `replay_freq` samples. When a new category starts, a fraction of each earlier category's slots is freed (`--delete_percent`, 1/n in the provided training scripts) to make room.
+- **Which examples enter the memory** (`--training_mode`):
+
+| Mode | Selection criterion |
+|------|---------------------|
+| `random` | Random baseline |
+| `uncertainty` | Highest sequence uncertainty of the model (token-level 1 - max probability, averaged over the caption) |
+| `diversity` | CLIP image+text features clustered with K-means; samples chosen by distance to cluster centroids |
+| `certainty` | Highest CLIP image-text similarity |
+| `hybrid` | `alpha * normalised uncertainty + (1 - alpha) * normalised diversity`, with stratified selection (default `alpha = 0.5`) |
+
+Other modes in `train.py`: `basic` (no memory) and `random_no_delete`.
+
+## Evaluation
+
+After training each category, the scripts under `alcie/scripts/evaluation/` caption the test split of every seen category and compute:
+
+- **Lexical metrics:** BLEU-4, ROUGE-L, METEOR
+- **Semantic metric:** BERTScore (precision, recall, F1)
+
+`resultsToCSV.py` collects the per-pair JSON files into one table per metric (test category x training stage), and `generate_graphs.py` plots them. Comparing lexical metrics with BERTScore on the same checkpoints is how the forgetting gap between surface wording and meaning is assessed.
+
+## Results
+
+Result files and the fashion dataset are not part of this repository, so no numbers are reported here. To produce them, follow the steps below and run `resultsToCSV.py`. The headline thesis result (lexical vs. semantic forgetting gap) will be added once the result tables are published alongside the code.
+
+## Reproduce
+
+1. Create the environment (see [Installation](#installation)). A CUDA GPU is required for training.
+2. Prepare the data in the layout described in [Dataset Structure](#-dataset-structure).
+3. Train with a chosen strategy, e.g. `SAMPLING_STRATEGY=hybrid ./alcie/scripts/trainer/train_blip2.sh` (BLIP-2) or `SAMPLING_STRATEGY=uncertainty ./alcie/scripts/trainer/train.sh` (OFA).
+4. Evaluate: `python alcie/scripts/evaluation/evaluate_model_blip2.py --sampling_method hybrid` (or `evaluate_model.py` for OFA).
+5. Aggregate: `python alcie/scripts/evaluation/resultsToCSV.py` (edit `evaluation_dir` at the top first) and `generate_graphs.py`.
+
+Paths in the example commands below are relative to the `alcie/` source folder; adjust to your checkout.
+
+## Citation
+
+```bibtex
+@mastersthesis{kumar2025alcie,
+  author = {Kumar, Akash},
+  title  = {Active Learning for Continual Image Captioning},
+  school = {Saarland University},
+  year   = {2025}
+}
 ```
-alcie/
-├── scripts/
-│   ├── data_processing/           # Data handling components
-│   │   ├── __init__.py
-│   │   ├── argument.py           # Training arguments for OFA/BLIP2
-│   │   ├── datacollator.py       # Data collators for both models
-│   │   └── dataset.py            # Dataset classes for OFA/BLIP2
-│   ├── memory_managements/       # Memory replay strategies
-│   │   ├── __init__.py
-│   │   ├── diversity_sampling.py    # Diversity-based sampling
-│   │   ├── random_sampling.py       # Random sampling baseline
-│   │   ├── certainty_sampling.py    # Certainty-based sampling
-│   │   ├── uncertainity_sampling.py # Uncertainty-based sampling
-│   │   ├── hybrid_sampling.py       # Hybrid sampling strategy
-│   │   └── memory_buffer.py         # Base memory buffer
-│   ├── trainer/                  # Training scripts and configurations
-│   │   ├── train.py             # OFA training script
-│   │   ├── train.sh             # OFA training shell script
-│   │   ├── train_blip2.py       # BLIP2 training script
-│   │   ├── train_blip2.sh       # BLIP2 training shell script
-│   │   ├── train_ofa.json       # OFA training configuration
-│   │   ├── train_blip2.json     # BLIP2 training configuration
-│   │   └── *_template.json      # Configuration templates
-│   └── evaluation/              # Evaluation and analysis
-│       ├── evaluate_model.py    # OFA model evaluation
-│       ├── evaluate_model_blip2.py  # BLIP2 model evaluation
-│       ├── generate_graphs.py   # Performance visualization
-│       └── resultsToCSV.py      # Results conversion
-└── README.md
-```
 
-## 🚀 Quick Start
+## Quick Start
 
 ### Prerequisites
 
@@ -378,41 +394,6 @@ python -c "import transformers; print(transformers.__version__)"
 python -c "import clip; print('CLIP loaded successfully')"
 ```
 
-## 📚 Research Background
+## License
 
-This implementation supports research in:
-- **Continual Learning**: Sequential task learning without forgetting
-- **Memory Replay**: Strategic sample selection and storage
-- **Multimodal Learning**: Vision-language model adaptation
-- **Fashion AI**: Domain-specific image captioning
-
-## 🤝 Contributing
-
-1. Fork the repository
-2. Create feature branch (`git checkout -b feature/new-sampling-strategy`)
-3. Implement changes following existing patterns
-4. Add comprehensive tests and documentation
-5. Submit pull request with detailed description
-
-## 📄 License
-
-This project is licensed under the MIT License - see the LICENSE file for details.
-
-## 🙏 Acknowledgments
-
-- **OFA Team**: Original OFA model architecture
-- **Salesforce**: BLIP-2 model and research
-- **Hugging Face**: Transformers library and model hub
-- **OpenAI**: CLIP model for multimodal embeddings
-- **Fashion Dataset Contributors**: Curated fashion image datasets
-
-## 📞 Contact
-
-For questions and support:
-- Create an issue in this repository
-- Check existing documentation and logs
-- Review configuration templates for reference
-
----
-
-**Happy Training! 🚀**
+MIT, see [LICENSE](LICENSE).
