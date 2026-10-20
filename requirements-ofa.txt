@@ -1,0 +1,19 @@
+# OFA environment (python 3.8). Install PyTorch first, see README "Installation".
+transformers==4.21.0
+tokenizers
+datasets
+accelerate
+evaluate
+scikit-learn
+numpy
+pandas
+Pillow
+tqdm
+loguru
+clip-by-openai
+opencv-python
+fairseq
+omegaconf
+hydra-core
+tensorboard
+wandb
