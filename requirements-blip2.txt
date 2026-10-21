@@ -1,0 +1,20 @@
+# BLIP-2 environment (python 3.9). Install PyTorch first, see README "Installation".
+transformers==4.35.0
+tokenizers
+datasets
+accelerate
+evaluate
+scikit-learn
+numpy
+pandas
+Pillow
+tqdm
+loguru
+clip-by-openai
+opencv-python
+tensorboard
+wandb
+peft
+bitsandbytes
+sentencepiece
+protobuf

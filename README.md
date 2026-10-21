@@ -91,13 +91,13 @@ Paths in the example commands below are relative to the `alcie/` source folder; 
 - CUDA-capable GPU
 - PyTorch 1.12+
 - Transformers library
-- Additional dependencies in requirements files
+- Additional dependencies in `requirements-ofa.txt` / `requirements-blip2.txt`
 
 ### Installation
 
 1. **Clone the repository:**
 ```bash
-git clone https://github.com/your-username/alcie.git
+git clone https://github.com/akashkumar25/alcie.git
 cd alcie
 ```
 
@@ -113,10 +113,7 @@ conda activate alcie_ofa
 pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu118
 
 # Install requirements
-pip install transformers==4.21.0 tokenizers datasets accelerate
-pip install evaluate scikit-learn numpy pandas Pillow tqdm
-pip install loguru clip-by-openai opencv-python fairseq
-pip install omegaconf hydra-core tensorboard wandb
+pip install -r requirements-ofa.txt
 ```
 
 For **BLIP-2**:
@@ -129,10 +126,7 @@ conda activate alcie_blip2
 pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu118
 
 # Install requirements
-pip install transformers==4.35.0 tokenizers datasets accelerate
-pip install evaluate scikit-learn numpy pandas Pillow tqdm
-pip install loguru clip-by-openai opencv-python tensorboard wandb
-pip install peft bitsandbytes sentencepiece protobuf
+pip install -r requirements-blip2.txt
 ```
 
 ## 📊 Dataset Structure
