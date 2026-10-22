@@ -1,0 +1,7 @@
+# Lightweight CPU test environment (no GPU, no model weights, no datasets).
+# Install PyTorch (CPU) first: pip install torch --index-url https://download.pytorch.org/whl/cpu
+pytest
+transformers
+scikit-learn
+numpy
+Pillow

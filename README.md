@@ -415,6 +415,18 @@ python -c "import transformers; print(transformers.__version__)"
 python -c "import clip; print('CLIP loaded successfully')"
 ```
 
+## Tests
+
+A small CPU-only test suite covers the episodic-memory logic (capacity, duplicate handling, proportional deletion from previous domains, per-domain replay sampling, save/load) and checks that every module compiles. It needs no GPU, model weights or dataset:
+
+```bash
+pip install torch --index-url https://download.pytorch.org/whl/cpu
+pip install -r requirements-test.txt
+pytest
+```
+
+The OpenAI `clip` package is stubbed in `tests/conftest.py` because it is only used for feature extraction during training. GitHub Actions runs the same suite on every push and pull request.
+
 ## License
 
 MIT, see [LICENSE](LICENSE).
