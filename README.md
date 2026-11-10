@@ -28,7 +28,7 @@ Fine-tuning an image-captioning model on a new domain overwrites what it learned
 
 ## Evaluation
 
-After training each domain, the scripts under `alcie/scripts/evaluation/` caption the test split of every seen domain and compute BLEU-4, ROUGE-L, METEOR (lexical) and BERTScore (semantic). `resultsToCSV.py` collects the per-pair JSON files into one table per metric, and `generate_graphs.py` plots them. The thesis reports BLEU-4 and BERTScore-F1 retention, Average Accuracy, Average Forgetting, and a human evaluation (15 participants, 24 images).
+After training each domain, the scripts under `alcie/scripts/evaluation/` caption the test split of every seen domain and compute BLEU-4, ROUGE-L, METEOR (lexical) and BERTScore (semantic). `resultsToCSV.py` collects the per-pair JSON files into one table per metric, and `generate_graphs.py` plots them. The thesis reports BLEU-4 and BERTScore-F1 retention, Average Accuracy, Average Forgetting, and a human evaluation (15 participants, 24 images). The study materials and analysis are in the companion repository [alcie-user-study](https://github.com/akashkumar25/alcie-user-study).
 
 ## Results
 
